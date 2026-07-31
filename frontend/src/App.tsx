@@ -7,7 +7,6 @@ import {
   type ServerMessage,
 } from './session'
 import { drawHandSkeleton } from './handOverlay'
-import { detectHandLandmarks, warmupHandTracker } from './localHandTracker'
 import './App.css'
 
 type AlertState = { message: string; confidence: number } | null
@@ -106,6 +105,7 @@ export default function App() {
           } else {
             lastHandTsRef.current = now
           }
+          const { detectHandLandmarks } = await import('./localHandTracker')
           const landmarks = await detectHandLandmarks(video, lastHandTsRef.current)
           paintHand(landmarks)
         } catch {
@@ -213,8 +213,9 @@ export default function App() {
         await videoRef.current.play()
       }
 
-      // Warm local MediaPipe tracker for smooth hand overlay
+      // Warm local MediaPipe tracker for smooth hand overlay (lazy load)
       try {
+        const { warmupHandTracker } = await import('./localHandTracker')
         await warmupHandTracker()
       } catch (err) {
         console.warn('Hand tracker warmup failed', err)
