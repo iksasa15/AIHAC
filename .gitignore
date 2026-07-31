@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+node_modules/
+dist/
+.DS_Store
+*.pt
+*.bin
+*.task
+.env
+backend/.cache/
+frontend/dist/
+*.egg-info/
+backend/models/hand_landmarker.task
+

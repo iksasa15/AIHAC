@@ -1,0 +1,79 @@
+:root {
+  --bg0: #0c1a24;
+  --bg1: #143049;
+  --bg2: #1a4a5c;
+  --accent: #2ec4b6;
+  --accent-2: #ff9f1c;
+  --danger: #e63946;
+  --text: #f4f7f5;
+  --muted: #a8c0c8;
+  --glass: rgba(12, 28, 38, 0.55);
+  --line: rgba(255, 255, 255, 0.12);
+  font-family: 'Cairo', sans-serif;
+  color: var(--text);
+  background: var(--bg0);
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(46, 196, 182, 0.22), transparent 55%),
+    radial-gradient(900px 500px at -10% 100%, rgba(255, 159, 28, 0.16), transparent 50%),
+    linear-gradient(160deg, var(--bg0), var(--bg1) 45%, var(--bg2));
+  background-attachment: fixed;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+@keyframes pulseAlert {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.01);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes captionIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
