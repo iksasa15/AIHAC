@@ -18,15 +18,44 @@ const MODE_PRESETS: { id: string; label: string; modes: ModeState }[] = [
   { id: 'safety', label: 'سلامة', modes: { receive: false, send: false, safety: true } },
 ]
 
-const DEFAULT_HINTS = [
-  'مرحبا — كف مفتوح',
-  'نعم — إبهام لأعلى',
-  'لا — قبضة',
-  'شكرا — إبهام وخنصر',
-  'مساعدة — خنصر',
-  'حسنا — إشارة OK',
-  'واحد…خمسة — عدد الأصابع',
+const SIGN_EMOJI: Record<string, string> = {
+  مرحبا: '👋',
+  نعم: '👍',
+  لا: '✊',
+  شكرا: '🤙',
+  مساعدة: '🤙',
+  ماء: '💧',
+  طعام: '🍽️',
+  أنا: '👆',
+  أنت: '👉',
+  حسنا: '👌',
+  توقف: '🤘',
+  واحد: '☝️',
+  اثنان: '✌️',
+  ثلاثة: '🤟',
+  أربعة: '🖖',
+  خمسة: '🖐️',
+}
+
+type VocabItem = { label: string; hint: string; emoji: string }
+
+const DEFAULT_VOCAB: VocabItem[] = [
+  { label: 'مرحبا', hint: 'كف مفتوح', emoji: '👋' },
+  { label: 'نعم', hint: 'إبهام لأعلى', emoji: '👍' },
+  { label: 'لا', hint: 'قبضة', emoji: '✊' },
+  { label: 'شكرا', hint: 'إبهام وخنصر', emoji: '🤙' },
+  { label: 'مساعدة', hint: 'خنصر', emoji: '✋' },
+  { label: 'حسنا', hint: 'إشارة OK', emoji: '👌' },
+  { label: 'واحد', hint: 'سبابة', emoji: '☝️' },
+  { label: 'اثنان', hint: 'سبابة ووسطى', emoji: '✌️' },
+  { label: 'ثلاثة', hint: 'ثلاث أصابع', emoji: '🤟' },
+  { label: 'أربعة', hint: 'أربع أصابع', emoji: '🖖' },
+  { label: 'خمسة', hint: 'خمس أصابع', emoji: '🖐️' },
 ]
+
+function emojiForLabel(label: string): string {
+  return SIGN_EMOJI[label] ?? '🤟'
+}
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -51,7 +80,7 @@ export default function App() {
   const [signLabel, setSignLabel] = useState<string | null>(null)
   const [signConf, setSignConf] = useState(0)
   const [alert, setAlert] = useState<AlertState>(null)
-  const [vocabHints, setVocabHints] = useState<string[]>(DEFAULT_HINTS)
+  const [vocabHints, setVocabHints] = useState<VocabItem[]>(DEFAULT_VOCAB)
   const [error, setError] = useState<string | null>(null)
 
   const playTts = useCallback((mime: string, b64: string) => {
@@ -127,9 +156,21 @@ export default function App() {
     (msg: ServerMessage) => {
       if (msg.type === 'ready') {
         if (msg.hints && Object.keys(msg.hints).length) {
-          setVocabHints(Object.entries(msg.hints).map(([k, v]) => `${k} — ${v}`))
+          setVocabHints(
+            Object.entries(msg.hints).map(([label, hint]) => ({
+              label,
+              hint,
+              emoji: emojiForLabel(label),
+            })),
+          )
         } else if (msg.vocab?.length) {
-          setVocabHints(msg.vocab)
+          setVocabHints(
+            msg.vocab.map((label) => ({
+              label,
+              hint: '',
+              emoji: emojiForLabel(label),
+            })),
+          )
         }
         return
       }
@@ -336,6 +377,9 @@ export default function App() {
 
           {signLabel && modes.send && (
             <div className="sign-chip">
+              <span className="sign-emoji" aria-hidden>
+                {emojiForLabel(signLabel)}
+              </span>
               <span className="sign-label">{signLabel}</span>
               <span className="sign-meta">{Math.round(signConf * 100)}%</span>
             </div>
@@ -420,8 +464,16 @@ export default function App() {
           <section className="panel">
             <h2>مفردات الإشارة</h2>
             <ul className="hints">
-              {vocabHints.map((h) => (
-                <li key={h}>{h}</li>
+              {vocabHints.map((item) => (
+                <li key={item.label} className="hint-item">
+                  <span className="hint-emoji" aria-hidden>
+                    {item.emoji}
+                  </span>
+                  <span className="hint-text">
+                    <strong>{item.label}</strong>
+                    {item.hint ? <span className="hint-desc"> — {item.hint}</span> : null}
+                  </span>
+                </li>
               ))}
             </ul>
             <p className="hint-note">أظهر يدك أمام الكاميرا بوضوح وبثبات قصير.</p>
