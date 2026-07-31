@@ -7,6 +7,7 @@ import {
   type ServerMessage,
 } from './session'
 import { drawHandSkeleton } from './handOverlay'
+import { detectHandLandmarks, warmupHandTracker } from './localHandTracker'
 import './App.css'
 
 type AlertState = { message: string; confidence: number } | null
@@ -37,9 +38,10 @@ export default function App() {
   const processorRef = useRef<ScriptProcessorNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const frameTimerRef = useRef<number | null>(null)
+  const handLoopRef = useRef<number | null>(null)
   const activeRef = useRef(false)
   const modesRef = useRef<ModeState>({ receive: true, send: true, safety: true })
-  const handClearTimerRef = useRef<number | null>(null)
+  const lastHandTsRef = useRef(0)
 
   const [running, setRunning] = useState(false)
   const [status, setStatus] = useState<'idle' | 'connecting' | 'open' | 'closed' | 'error'>('idle')
@@ -83,6 +85,44 @@ export default function App() {
     )
   }, [])
 
+  const stopHandLoop = useCallback(() => {
+    if (handLoopRef.current != null) {
+      cancelAnimationFrame(handLoopRef.current)
+      handLoopRef.current = null
+    }
+  }, [])
+
+  const startHandLoop = useCallback(() => {
+    stopHandLoop()
+    const tick = async () => {
+      if (!activeRef.current) return
+      const video = videoRef.current
+      if (video && modesRef.current.send) {
+        try {
+          // MediaPipe requires strictly increasing timestamps
+          const now = performance.now()
+          if (now <= lastHandTsRef.current) {
+            lastHandTsRef.current += 1
+          } else {
+            lastHandTsRef.current = now
+          }
+          const landmarks = await detectHandLandmarks(video, lastHandTsRef.current)
+          paintHand(landmarks)
+        } catch {
+          /* keep loop alive if a frame fails */
+        }
+      } else {
+        paintHand([])
+      }
+      handLoopRef.current = requestAnimationFrame(() => {
+        void tick()
+      })
+    }
+    handLoopRef.current = requestAnimationFrame(() => {
+      void tick()
+    })
+  }, [paintHand, stopHandLoop])
+
   const handleMessage = useCallback(
     (msg: ServerMessage) => {
       if (msg.type === 'ready') {
@@ -98,14 +138,8 @@ export default function App() {
         setCaptions((prev) => [...prev.slice(-4), msg.text])
         return
       }
+      // Hand overlay is drawn locally for low latency — ignore server landmarks
       if (msg.type === 'hand') {
-        paintHand(msg.landmarks)
-        if (handClearTimerRef.current) window.clearTimeout(handClearTimerRef.current)
-        if (!msg.landmarks.length) {
-          paintHand([])
-        } else {
-          handClearTimerRef.current = window.setTimeout(() => paintHand([]), 600)
-        }
         return
       }
       if (msg.type === 'sign') {
@@ -126,18 +160,15 @@ export default function App() {
         setError(msg.message)
       }
     },
-    [paintHand, playTts],
+    [playTts],
   )
 
   const stopMedia = useCallback(() => {
     activeRef.current = false
+    stopHandLoop()
     if (frameTimerRef.current) {
       window.clearInterval(frameTimerRef.current)
       frameTimerRef.current = null
-    }
-    if (handClearTimerRef.current) {
-      window.clearTimeout(handClearTimerRef.current)
-      handClearTimerRef.current = null
     }
     processorRef.current?.disconnect()
     processorRef.current = null
@@ -149,7 +180,7 @@ export default function App() {
       videoRef.current.srcObject = null
     }
     paintHand([])
-  }, [paintHand])
+  }, [paintHand, stopHandLoop])
 
   const stopSession = useCallback(() => {
     stopMedia()
@@ -182,6 +213,13 @@ export default function App() {
         await videoRef.current.play()
       }
 
+      // Warm local MediaPipe tracker for smooth hand overlay
+      try {
+        await warmupHandTracker()
+      } catch (err) {
+        console.warn('Hand tracker warmup failed', err)
+      }
+
       const audioCtx = new AudioContext()
       audioCtxRef.current = audioCtx
       const source = audioCtx.createMediaStreamSource(stream)
@@ -206,7 +244,7 @@ export default function App() {
       processor.connect(mute)
       mute.connect(audioCtx.destination)
 
-      // Frame capture for sign recognition ~4 fps
+      // Frames to backend for sign classification (overlay is local / realtime)
       frameTimerRef.current = window.setInterval(() => {
         if (!activeRef.current || !modesRef.current.send) return
         const video = videoRef.current
@@ -222,9 +260,10 @@ export default function App() {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
         const b64 = dataUrl.split(',')[1]
         if (b64) socketRef.current?.sendFrameBase64(b64)
-      }, 250)
+      }, 350)
 
       activeRef.current = true
+      startHandLoop()
       setRunning(true)
       window.setTimeout(() => {
         socket.setModes(modesRef.current, 16000)
@@ -233,7 +272,7 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'تعذر الوصول للكاميرا أو الميكروفون')
       stopSession()
     }
-  }, [handleMessage, modes, stopSession])
+  }, [handleMessage, startHandLoop, stopSession])
 
   useEffect(() => {
     modesRef.current = modes
